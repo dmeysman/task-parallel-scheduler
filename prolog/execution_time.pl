@@ -1,33 +1,42 @@
+/** <module> Execution time for task scheduling problem solutions
+
+@author Dylan Meysmans <dmeysman@vub.ac.be>
+@license MIT
+@version 0.1.0
+*/
+
 :- module(execution_time, [execution_time/2,
                            sinks/1,
                            start_times/3,
-                           start_time/3,
-                           start_time_independent/3,
-                           tasks_on_core/3,
+                           start_time/4,
+                           start_time_independent/4,
+                           schedule_for_task_core/3,
                            process_costs/3,
-                           end_times_dependencies/4,
-                           dependencies/2,
+                           end_times_dependencies/5,
+                           end_time_dependency/5,
+                           pairwise_sum/3,
                            communication_cost/4,
-                           end_time/3,
-                           task_on_core/3]).
+                           end_time/4]).
 
-/** <module> Execution time for scheduling problem solutions
-
-@author Dylan Meysmans
-@license MIT
-*/
+:- dynamic
+  %! user:end_time_dependency(+D, +T, -ET:int) is semidet.
+  %
+  % Instantiates ET to the end time of D, accounting for communication costs between
+  % the cores on which D and T execute.
+  user:end_time_dependency/3.
 
 :- use_module(library(lists)).
 
-%! execution_time(+S:solution, -ET:int) is det.
+%! execution_time(+S:solution, -ET:int) is semidet.
 %
-% Instantiates ET to the execution time of S.
+% Instantiates ET to the execution time of S, if S is a valid solution to the task scheduling problem.
 execution_time(solution(Ss), ET) :-
   sinks(Ts),
   start_times(Ts, Ss, STs),
   process_costs(Ts, Ss, PCs),
   pairwise_sum(STs, PCs, ETs),
-  max_member(ET, ETs).
+  max_member(ET, ETs),
+  retractall(user:end_time_dependency(_, _, _)). % clears the memoized clauses
 
 %! sinks(+Ts:list) is det.
 %! sinks(-Ts:list) is det.
@@ -35,89 +44,92 @@ execution_time(solution(Ss), ET) :-
 % Succeeds if Ts is the list of all tasks on which no other task depends.
 % You need not instantiate Ts, if you do not, it is instantiated to this list.
 sinks(Ts) :-
-  findall(T, (user:task(T), not(depends_on(_, T, _))), Ts).
+  findall(T, (user:task(T), not(user:depends_on(_, T, _))), Ts).
 
-%! start_times(+Ts:list, +Ss:list, -STs:list) is det.
+%! start_times(+Ts:list, +Ss:list, -STs:list) is semidet.
 %
 % Instantiates STs to the list of start times of Ts in Ss.
 start_times([], _, _).
 start_times([T|Ts], Ss, [ST|STs]) :-
-  start_time(T, Ss, ST),
+  schedule_for_task_core(T, Ss, S),
+  start_time(T, S, Ss, ST),
   start_times(Ts, Ss, STs).
 
-%! start_time(+T, +Ss:list, -ST:int) is det.
+%! start_time(+T, +S:schedule, +Ss:list, -ST:int) is semidet.
 %
 % Instantiates ST to the earliest possible start time of T in Ss, accounting for dependencies.
-start_time(T, Ss, ST) :-
-  dependencies(T, Ds),
-  end_times_dependencies(Ds, T, Ss, ETs),
-  start_time_independent(T, Ss, STI),
+% To avoid the cost of memberchk/2 on Ss, S is the schedule which contains T.
+start_time(T, S, Ss, ST) :-
+  user:dependencies(T, Ds),
+  end_times_dependencies(Ds, T, S, Ss, ETs),
+  start_time_independent(T, S, Ss, STI),
   max_member(ST, [STI|ETs]).
 
-%! start_time_independent(+T, +Ss:list, -ST:int) is det.
+%! start_time_independent(+T, +S:schedule, +Ss:list, -ST:int) is semidet.
 %
 % Instantiates ST to the start time of T in Ss, not accounting for dependencies.
-start_time_independent(T, Ss, 0) :-
- task_on_core(T, Ss, C),
- tasks_on_core(C, Ss, [T|_]).
-start_time_independent(T, Ss, ST) :-
- task_on_core(T, Ss, C),
- tasks_on_core(C, Ss, Ts),
- nextto(U, T, Ts),
- end_time(U, Ss, ST).
+% To avoid the cost of memberchk/2 on Ss, S is the schedule which contains T.
+start_time_independent(T, schedule(_,[T|_]), _, 0).
+start_time_independent(T, schedule(C,Ts), Ss, ET) :-
+  nextto(U, T, Ts),
+  end_time(U, schedule(C,Ts), Ss, ET).
 
-%! tasks_on_core(+C, +Ss:list, -Ts:list) is det.
+%! schedule_for_task_core(+T, +Ss:list, -S:schedule) is semidet.
 %
-% Instantiates Ts to the list of tasks on C in Ss.
-tasks_on_core(C, [schedule(C,Ts)|_], Ts).
-tasks_on_core(C, [schedule(D,_)|Ss], Ts) :-
- C \== D,
- tasks_on_core(C, Ss, Ts).
+% Instantiates S to the schedule for the core on which T is scheduled in Ss.
+schedule_for_task_core(T, Ss, schedule(C, Ts)) :-
+  member(schedule(C, Ts), Ss),
+  memberchk(T, Ts).
 
-%! process_costs(+Ts:list, +Ss:list, -PCs:list) is det.
+%! process_costs(+Ts:list, +Ss:list, -PCs:list) is semidet.
 %
 % Instantiates PCs to the process costs of Ts in Ss.
 process_costs([], _, _).
 process_costs([T|Ts], Ss, [PC|PCs]) :-
- task_on_core(T, Ss, C),
- process_cost(T, C, PC),
- process_costs(Ts, Ss, PCs).
+  schedule_for_task_core(T, Ss, schedule(C,_)),
+  process_cost(T, C, PC),
+  process_costs(Ts, Ss, PCs).
 
-%! end_times_dependencies(+Ds:list, +T, +Ss:list, -ETs:list) is det.
+%! end_times_dependencies(+Ds:list, +T, +S:schedule, +Ss:list, -ETs:list) is semidet.
 %
 % Instantiates ETs to the sums of the end times of Ds and the communication costs
 % between the cores on which T and Ds are scheduled in Ss.
-end_times_dependencies(Ds, T, Ss, ETs) :-
-  end_times_dependencies(Ds, T, Ss, [], ETs).
+% To avoid the cost of memberchk/2 on Ss, S is the schedule which contains T.
+end_times_dependencies(Ds, T, S, Ss, ETs) :-
+  end_times_dependencies(Ds, T, S, Ss, [], ETs).
 
-end_times_dependencies([], _, _, ETs, ETs).
-end_times_dependencies([D|Ds], T, Ss, AETs, ETs) :-
-  start_time(D, Ss, ST),
-  task_on_core(D, Ss, C),
+end_times_dependencies([], _, _, _, ETs, ETs).
+end_times_dependencies([D|Ds], T, schedule(E,Us), Ss, AETs, ETs) :-
+  end_time_dependency(D, T, schedule(E,Us), Ss, ET),
+  end_times_dependencies(Ds, T, schedule(E,Us), Ss, [ET|AETs], ETs).
+
+%! end_time_dependency(+D, +T, +S:schedule, +Ss:list, -ET:int) is semidet.
+%
+% Instantiates ET to the sum of the end time of D and the communication cost between
+% the cores on which T and D are scheduled in Ss. This predicate is memoized using assert/1.
+end_time_dependency(D, T, _, _, ET) :-
+  end_time_dependency(D, T, ET),
+  !. % red cut - ensures the memoized result is only computed once by making the clauses mutually exclusive
+end_time_dependency(D, T, schedule(E,_), Ss, ET) :-
+  schedule_for_task_core(D, Ss, schedule(C,Ts)),
+  start_time(D, schedule(C,Ts), Ss, ST),
   process_cost(D, C, Cost),
   depends_on(T, D, Data),
-  task_on_core(T, Ss, E),
   communication_cost(C, E, Data, CommunicationCost),
-  CET is ST + Cost + CommunicationCost,
-  end_times_dependencies(Ds, T, Ss, [CET|AETs], ETs).
+  ET is ST + Cost + CommunicationCost,
+  assert(end_time_dependency(D, T, ET)). % memoizes the result for later calls
 
-pairwise_sum([], [_|_], []) :-
-  !. % green cut - prevents duplicates when the input lists are of equal length.
-pairwise_sum([_|_], [], []) :-
-  !. % green cut - prevents duplicates when the input lists are of equal length.
+%! pairwise_sum(+Ms:list, +Ns:list, -Ss:list) is semidet.
+%
+% Instantiates Ss to the list of sums of elements drawn pairwise from Ms and Ns.
+pairwise_sum([], [], []).
 pairwise_sum([M|Ms], [N|Ns], [S|Ss]) :-
+  ground(M),
+  ground(N),
   S is M + N,
   pairwise_sum(Ms, Ns, Ss).
 
-%! dependencies(+T, -Ds) is det.
-%! dependencies(-T, +Ds) is det.
-%
-% Succeeds if Ds is the list of tasks on which T depends.
-% You need not instantiate T, if you do not, you need instantiate Ds.
-dependencies(T, Ds) :-
-  findall(D, depends_on(T, D, _), Ds).
-
-%! communication_cost(+C, +D, +Data:int, -Cost:int) is det.
+%! communication_cost(+C, +D, +Data:int, -Cost:int) is semidet.
 %
 % Instantiates Cost to the cost of sending Data megabytes from C to D.
 communication_cost(C, C, _, 0).
@@ -126,19 +138,11 @@ communication_cost(C, D, Data, Cost) :-
   channel(C, D, Latency, Bandwidth),
   Cost is Latency + (Data / Bandwidth).
 
-%! end_time(+T, +Ss:list, -ET) is det.
+%! end_time(+T, +S:schedule, +Ss:list, -ET) is semidet.
 %
 % Instantiates ET to the end time of T in Ss.
-end_time(T, Ss, ET) :-
-  start_time(T, Ss, ST),
-  task_on_core(T, Ss, C),
+% To avoid the cost of memberchk/2 on Ss, S is the schedule which contains T.
+end_time(T, schedule(C,Ts), Ss, ET) :-
+  start_time(T, schedule(C,Ts), Ss, ST),
   process_cost(T, C, Cost),
   ET is ST + Cost.
-
-%! task_on_core(+T, +Ss:list, -C) is det.
-%
-% Succeeds if T is scheduled on C in Ss.
-task_on_core(T, [schedule(C, Ts)|_], C) :-
- memberchk(T, Ts).
-task_on_core(T, [_|Ss], C) :-
- task_on_core(T, Ss, C).
