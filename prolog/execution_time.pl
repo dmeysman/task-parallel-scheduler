@@ -1,4 +1,4 @@
-/** <module> Execution time for task scheduling problem solutions
+/** <module> Execution time for scheduling problem solutions
 
 @author Dylan Meysmans <dmeysman@vub.ac.be>
 @license MIT
@@ -22,7 +22,7 @@
 
 %! execution_time(+S:solution, -ET:int) is semidet.
 %
-% Instantiates ET to the execution time of S, if S is a valid solution to the task scheduling problem.
+% Instantiates ET to the execution time of S, if S is a valid solution to a scheduling problem.
 execution_time(solution(Ss), ET) :-
   sinks(Ts),
   start_times(Ts, Ss, STs),
