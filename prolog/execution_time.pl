@@ -9,6 +9,7 @@
                            sinks/1,
                            start_times/3,
                            start_time/4,
+                           dependencies/2,
                            start_time_independent/4,
                            schedule_for_task_core/3,
                            process_costs/3,
@@ -29,7 +30,7 @@ execution_time(solution(Ss), ET) :-
   pairwise_sum(STs, PCs, ETs),
   max_member(ET, ETs).
 
-%! sinks(+Ts:list) is det.
+%! sinks(+Ts:list) is semidet.
 %! sinks(-Ts:list) is det.
 %
 % Succeeds if Ts is the list of all tasks on which no other task depends.
@@ -51,10 +52,18 @@ start_times([T|Ts], Ss, [ST|STs]) :-
 % Instantiates ST to the earliest possible start time of T in Ss, accounting for dependencies.
 % To avoid the cost of memberchk/2 on Ss, S is the schedule which contains T.
 start_time(T, S, Ss, ST) :-
-  user:dependencies(T, Ds),
+  dependencies(T, Ds),
   end_times_dependencies(Ds, T, S, Ss, ETs),
   start_time_independent(T, S, Ss, STI),
   max_member(ST, [STI|ETs]).
+
+%! dependencies(+T, +Ds:list) is semidet.
+%! dependencies(+T, -Ds:list) is det.
+%
+% Succeeds if Ds is the list of tasks on which T depends.
+% You need not instantiate Ds, if you do not, it is instantiated to this list.
+dependencies(T, Ds) :-
+  findall(D, user:depends_on(T, D, _), Ds).
 
 %! start_time_independent(+T, +S:schedule, +Ss:list, -ST:int) is semidet.
 %
