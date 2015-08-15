@@ -14,6 +14,9 @@
 
 :- use_module(library(lists)).
 
+:- use_module(utilities, [cores/1,
+                          tasks/1]).
+
 %! isSolution(+S:solution) is semidet.
 %! isSolution(-S:solution) is nondet.
 %
@@ -24,22 +27,6 @@ isSolution(solution(Ss)) :-
   cores(Cs),
   tasks(Ts),
   test_schedules(Cs, Ts, Ss).
-
-%! cores(+Cs:list) is semidet.
-%! cores(-Cs:list) is det.
-%
-% Succeeds if Cs is the list of cores that the system can schedule tasks on.
-% You need not instantiate Cs, if you do not, it is instantiated to the list of cores.
-cores(Cs) :-
-  findall(C, user:core(C), Cs).
-
-%! tasks(+Ts:list) is semidet.
-%! tasks(-Ts:list) is det.
-%
-% Succeeds if Ts is the list of tasks that the system needs schedule.
-% You need not instantiate Ts, if you do not, it is instantiated to the list of tasks.
-tasks(Ts) :-
-  findall(T, user:task(T), Ts).
 
 %! test_schedules(+Cs:list, +Ts:list, +Ss:list) is semidet.
 %! test_schedules(+Cs:list, +Ts:list, -Ss:list) is nondet.
