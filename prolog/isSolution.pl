@@ -15,7 +15,8 @@
 :- use_module(library(lists)).
 
 :- use_module(utilities, [cores/1,
-                          tasks/1]).
+                          tasks/1,
+                          depends_on/2]).
 
 %! isSolution(+S:solution) is semidet.
 %! isSolution(-S:solution) is nondet.
@@ -60,20 +61,6 @@ depends_on_any(T, [D|_]) :-
 depends_on_any(T, [D|Ds]) :-
   not(depends_on(T, D)),
   depends_on_any(T, Ds).
-
-%! depends_on(+T, +D) is semidet.
-%
-% Succeeds if T directly or indirectly depends on D.
-% Represents the reflexive and transitive closure of the dependency relation.
-depends_on(T, T).
-depends_on(T, D) :-
-  T \== D,
-  user:depends_on(T, D, _).
-depends_on(T, D) :-
-  T \== D,
-  not(user:depends_on(T, D, _)),
-  user:depends_on(T, V, _),
-  depends_on(V, D).
 
 %! selectchk_many(+Ys:list, +Xs:list, -Zs:list) is semidet.
 %

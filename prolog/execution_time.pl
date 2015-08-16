@@ -11,7 +11,6 @@
                            start_time/4,
                            dependencies/2,
                            start_time_independent/4,
-                           schedule_for_task_core/3,
                            process_costs/3,
                            end_times_dependencies/5,
                            pairwise_sum/3,
@@ -26,6 +25,8 @@
   user:end_time_dependency/3.
 
 :- use_module(library(lists)).
+
+:- use_module(utilities, [schedule_for_task_core/3]).
 
 %! execution_time(+S:solution, -ET:int) is semidet.
 %
@@ -81,13 +82,6 @@ start_time_independent(T, schedule(_,[T|_]), _, 0).
 start_time_independent(T, schedule(C,Ts), Ss, ET) :-
   nextto(U, T, Ts),
   end_time(U, schedule(C,Ts), Ss, ET).
-
-%! schedule_for_task_core(+T, +Ss:list, -S:schedule) is semidet.
-%
-% Instantiates S to the schedule for the core on which T is scheduled in Ss.
-schedule_for_task_core(T, Ss, schedule(C,Ts)) :-
-  member(schedule(C,Ts), Ss),
-  memberchk(T, Ts).
 
 %! process_costs(+Ts:list, +Ss:list, -PCs:list) is semidet.
 %
