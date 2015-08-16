@@ -9,7 +9,6 @@
                        generate_schedules/3,
                        ordered_tasks/2,
                        depends_on_any/2,
-                       depends_on/2,
                        selectchk_many/3]).
 
 :- use_module(library(lists)).
