@@ -34,16 +34,16 @@ speedup(S, Speedup) :-
 % We note that this predicate does not sort tasks topologically, because this has no effect
 % on sequential execution times.
 find_optimal_sequential(ET) :-
-	assert(user:optimal_sequential(infinity)),
-	cores(Cs),
-	tasks(Ts),
-	select(C, Cs, _),
-	find_sequential_on_core(C, Ts, ET),
-	update_optimal_sequential(ET),
-	fail.
+  assert(user:optimal_sequential(infinity)),
+  cores(Cs),
+  tasks(Ts),
+  select(C, Cs, _),
+  find_sequential_on_core(C, Ts, ET),
+  update_optimal_sequential(ET),
+  fail.
 find_optimal_sequential(ET) :-
-	user:optimal_sequential(ET),
-	retract(user:optimal_sequential(_)).
+  user:optimal_sequential(ET),
+  retract(user:optimal_sequential(_)).
 
 %! find_sequential_on_core(+C, +Ts:list, -ET:int) is det.
 %
@@ -55,14 +55,14 @@ find_sequential_on_core(_, [], ET, ET).
 find_sequential_on_core(C, [T|Ts], AET, ET) :-
   process_cost(T, C, ETT),
   NET is AET + ETT,
-	find_sequential_on_core(C, Ts, NET, ET).
+  find_sequential_on_core(C, Ts, NET, ET).
 
 %! update_optimal_sequential(+ET:int) is det.
 %
 % Updates the optimal sequential execution time for a scheduling problem, if it is improved.
 update_optimal_sequential(ET) :-
-	user:optimal_sequential(OET),
-	augmented_less(ET, OET),
-	retract(user:optimal_sequential(_)),
-	assert(user:optimal_sequential(ET)).
+  user:optimal_sequential(OET),
+  augmented_less(ET, OET),
+  retract(user:optimal_sequential(_)),
+  assert(user:optimal_sequential(ET)).
 update_optimal_sequential(_).
