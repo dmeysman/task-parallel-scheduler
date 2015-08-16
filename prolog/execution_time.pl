@@ -18,6 +18,13 @@
                            communication_cost/4,
                            end_time/4]).
 
+:- dynamic
+  %! user:end_time_dependency(+D, +T, -ET:int) is semidet.
+  %
+  % Instantiates ET to the end time of D, accounting for communication costs between
+  % the cores on which D and T execute.
+  user:end_time_dependency/3.
+
 :- use_module(library(lists)).
 
 %! execution_time(+S:solution, -ET:int) is semidet.
@@ -28,7 +35,8 @@ execution_time(solution(Ss), ET) :-
   start_times(Ts, Ss, STs),
   process_costs(Ts, Ss, PCs),
   pairwise_sum(STs, PCs, ETs),
-  max_member(ET, ETs).
+  max_member(ET, ETs),
+  retractall(user:end_time_dependency(_, _, _)). % clears the memoized clauses
 
 %! sinks(+Ts:list) is semidet.
 %! sinks(-Ts:list) is det.
@@ -100,13 +108,24 @@ end_times_dependencies(Ds, T, S, Ss, ETs) :-
 
 end_times_dependencies([], _, _, _, ETs, ETs).
 end_times_dependencies([D|Ds], T, schedule(E,Us), Ss, AETs, ETs) :-
+  end_time_dependency(D, T, schedule(E,Us), Ss, ET),
+  end_times_dependencies(Ds, T, schedule(E,Us), Ss, [ET|AETs], ETs).
+
+%! end_time_dependency(+D, +T, +S:schedule, +Ss:list, -ET:int) is semidet.
+%
+% Instantiates ET to the sum of the end time of D and the communication cost between
+% the cores on which T and D are scheduled in Ss. This predicate is memoized using assert/1.
+end_time_dependency(D, T, _, _, ET) :-
+  end_time_dependency(D, T, ET),
+  !. % red cut - ensures the memoized result is only computed once by making the clauses mutually exclusive
+end_time_dependency(D, T, schedule(E,_), Ss, ET) :-
   schedule_for_task_core(D, Ss, schedule(C,Ts)),
   start_time(D, schedule(C,Ts), Ss, ST),
   process_cost(D, C, Cost),
   depends_on(T, D, Data),
   communication_cost(C, E, Data, CommunicationCost),
   ET is ST + Cost + CommunicationCost,
-  end_times_dependencies(Ds, T, schedule(E,Us), Ss, [ET|AETs], ETs).
+  assert(end_time_dependency(D, T, ET)). % memoizes the result for later calls
 
 %! pairwise_sum(+Ms:list, +Ns:list, -Ss:list) is semidet.
 %
